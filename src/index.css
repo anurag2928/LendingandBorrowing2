@@ -1,0 +1,64 @@
+@import url('https://ext.same-assets.com/4108832712/1411677578.woff2'); /* Poppins */
+@import url('https://ext.same-assets.com/4108832712/2730388244.woff2'); /* Inter */
+@import url('https://ext.same-assets.com/4108832712/2465678096.woff2'); /* Poppins Medium */
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color-scheme: light dark;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  --primary-color: #5872FF;
+  --primary-dark: #2C3B8D;
+  --primary-light: #6b3493;
+  --background-dark: #081D21;
+  --text-color: #141414;
+  --text-light: #545454;
+  --white: #FFFFFF;
+  --gray-light: #F5F5F5;
+  --gray-border: #E2E2E2;
+  --shadow-color: rgba(0, 0, 0, 0.1);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  font-family: 'Inter', 'Poppins', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: var(--text-color);
+}
+
+@font-face {
+  font-family: 'Poppins';
+  src: url('https://ext.same-assets.com/4108832712/1411677578.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Poppins';
+  src: url('https://ext.same-assets.com/4108832712/2465678096.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('https://ext.same-assets.com/4108832712/2730388244.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
