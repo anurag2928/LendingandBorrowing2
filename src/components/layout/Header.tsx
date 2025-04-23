@@ -1,9 +1,19 @@
 import { useState, useEffect } from 'react';
+import { supabase } from './../../supabaseClient'; // Import supabase client
+
+// Extend the Window interface to include the ethereum property
+declare global {
+  interface Window {
+    ethereum?: any;
+  }
+}
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { FaBars, FaTimes } from 'react-icons/fa';
+import { ethers } from 'ethers';
 import { Container, Button } from '../../styles/CommonStyles';
 import { media } from '../../styles/responsive';
+import { useWallet } from '../../context/WalletContext'; // Import useWallet
 
 const HeaderWrapper = styled.header`
   position: sticky;
@@ -189,23 +199,123 @@ const Dropdown = ({ label, items }: DropdownProps) => {
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [currentPath, setCurrentPath] = useState('');
+  // const [account, setAccount] = useState<string | null>(null);
+  const [balance, setBalance] = useState<string | null>(null);
+  const [networkWarning, setNetworkWarning] = useState(false);
+
+  const { account, setAccount } = useWallet(); // Use WalletContext for account state
 
   useEffect(() => {
     setCurrentPath(window.location.pathname);
   }, []);
 
-  // Prevent scrolling when mobile menu is open
   useEffect(() => {
-    if (isMenuOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'auto';
-    }
-
-    return () => {
-      document.body.style.overflow = 'auto';
-    };
+    document.body.style.overflow = isMenuOpen ? 'hidden' : 'auto';
+    return () => { document.body.style.overflow = 'auto'; };
   }, [isMenuOpen]);
+
+  const connectWallet = async () => {
+    try {
+        if (typeof window.ethereum === 'undefined') {
+            alert('MetaMask is not installed');
+            return;
+        }
+
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const network = await provider.getNetwork();
+
+        // Ensure the user is connected to the Sepolia Testnet
+        if (network.chainId !== 11155111n) {
+            try {
+                await window.ethereum.request({
+                    method: 'wallet_switchEthereumChain',
+                    params: [{ chainId: '0xaa36a7' }], // 0xaa36a7 = 11155111 in hex
+                });
+            } catch (switchError) {
+                console.error('Switch network error:', switchError);
+                alert('Please switch to the Sepolia Testnet in your wallet.');
+                return;
+            }
+        }
+
+        // Request wallet accounts
+        const accounts = await provider.send('eth_requestAccounts', []);
+        const walletAddress = accounts[0];
+
+        // Check if the user exists in the database
+        const { data: existingUser, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('wallet_address', walletAddress)
+            .single();
+
+        if (error && error.code === 'PGRST116') {
+            // User does not exist, create a new user
+            const { data: newUser, error: insertError } = await supabase
+                .from('users')
+                .insert([{ wallet_address: walletAddress }])
+                .select()
+                .single();
+
+            if (insertError) {
+                console.error('Error creating user:', insertError);
+                alert('Failed to create user. Please try again.');
+                return;
+            }
+
+            console.log('New user created:', newUser);
+        } else if (error) {
+            console.error('Error fetching user:', error);
+            alert('Failed to fetch user. Please try again.');
+            return;
+        } else {
+            console.log('User already exists:', existingUser);
+        }
+
+        // Update wallet state
+        const signer = await provider.getSigner();
+        const address = await signer.getAddress();
+        setAccount(address);
+
+        // Fetch and format balance
+        const balanceBigInt = await provider.getBalance(address);
+        const balanceInEth = ethers.formatEther(balanceBigInt);
+        setBalance(parseFloat(balanceInEth).toFixed(4));
+    } catch (err) {
+        console.error('Error connecting wallet:', err);
+        alert('Failed to connect wallet. Please try again.');
+    }
+};
+
+  const disconnectWallet = () => {
+    setAccount(null);
+    setBalance(null);
+  };
+
+  
+
+  useEffect(() => {
+    if (!window.ethereum) return;
+
+    const handleAccountsChanged = async (accounts: string[]) => {
+      if (accounts.length > 0) {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const balanceBigInt = await provider.getBalance(accounts[0]);
+        const balanceInEth = ethers.formatEther(balanceBigInt);
+
+        setAccount(accounts[0]);
+        setBalance(parseFloat(balanceInEth).toFixed(4));
+      } else {
+        setAccount(null);
+        setBalance(null);
+      }
+    };
+
+    window.ethereum.on('accountsChanged', handleAccountsChanged);
+    return () => {
+      window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+    };
+  }, []);
 
   const businessesDropdown = [
     { label: 'Business Loans', link: '/businesses/businessloans' },
@@ -225,7 +335,7 @@ const Header = () => {
 
         <NavLinks isOpen={isMenuOpen}>
           <Dropdown label="BUSINESSES" items={businessesDropdown} />
-          <NavLink to="/why-defi" active={currentPath === '/why-defi'}>WHY DEFI?</NavLink>
+          <NavLink to="/Dashboard" active={currentPath === '/Dashboard'}>Dashboard</NavLink>
           <NavLink to="/about" active={currentPath === '/about'}>ABOUT US</NavLink>
           <NavLink to="/faq" active={currentPath === '/faq'}>FAQ</NavLink>
           <NavLink to="/contact" active={currentPath === '/contact'}>CONTACT</NavLink>
@@ -235,9 +345,21 @@ const Header = () => {
             <Button as={Link} to="/get-a-loan" variant="primary" size="medium" style={{ marginRight: '10px' }}>
               GET A LOAN
             </Button>
-            <Button as="a" href="#" variant="dark" size="medium">
-              Connect
+
+            {account ? (
+              <>
+              <Button variant="dark" size="medium" disabled>
+                {`${account.slice(0, 6)}...${account.slice(-4)} | ${balance} ETH`}
+              </Button>
+              <Button as="button" onClick={disconnectWallet} variant="dark" size="medium">
+              Disconnect
             </Button>
+            </>
+            ) : (
+              <Button as="button" onClick={connectWallet} variant="dark" size="medium">
+                Connect
+              </Button>
+            )}
           </ButtonContainer>
         </NavLinks>
       </HeaderContainer>
