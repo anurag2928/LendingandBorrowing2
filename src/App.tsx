@@ -8,6 +8,7 @@ import AboutPage from './pages/AboutPage';
 import FAQPage from './pages/FAQPage';
 import DashboardPage from './pages/Dashboard';
 import LoanFlowPage from './pages/LoanFlowpage1';
+import LendPage from './pages/LendPage';
 import { WalletProvider, useWallet } from './context/WalletContext'; // Import WalletProvider and useWallet
 
 // Placeholder pages for routes we haven't implemented yet
@@ -32,6 +33,7 @@ function App() {
             <Route path="/learn" element={<Learn />} />
             <Route path="/get-a-loan" element={<LoanFlowPageWrapper />} /> {/* Use a wrapper to pass account */}
             <Route path="*" element={<NotFound />} />
+            <Route path="/lend" element={<LendPageWrapper />} /> {/* Use a wrapper to pass account */}
           </Routes>
         </Layout>
       </ThemeProvider>
@@ -49,6 +51,12 @@ const LoanFlowPageWrapper = () => {
 const DashboardPageWrapper = () => {
   const { account } = useWallet(); // Access account from WalletContext
   return <DashboardPage account={account} />;
+};
+
+// Wrapper component to pass account to LendPage
+const LendPageWrapper = () => {
+  const { account } = useWallet();
+  return <LendPage account={account} />;
 };
 
 export default App;

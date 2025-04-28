@@ -339,7 +339,7 @@ const Header = () => {
           <NavLink to="/about" active={currentPath === '/about'}>ABOUT US</NavLink>
           <NavLink to="/faq" active={currentPath === '/faq'}>FAQ</NavLink>
           <NavLink to="/contact" active={currentPath === '/contact'}>CONTACT</NavLink>
-          <NavLink to="/learn" active={currentPath === '/learn'}>LEARN</NavLink>
+          <NavLink to="/lend" active={currentPath === '/lend'}>EARN</NavLink>
 
           <ButtonContainer>
             <Button as={Link} to="/get-a-loan" variant="primary" size="medium" style={{ marginRight: '10px' }}>

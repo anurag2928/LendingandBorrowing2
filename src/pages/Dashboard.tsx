@@ -130,6 +130,7 @@ export default function DashboardPage({ account }: { account: string | null }) {
   const [activeTab, setActiveTab] = useState('Loans');
   const [activeSubTab, setActiveSubTab] = useState('Active Loans');
   const [loans, setLoans] = useState<any[]>([]);
+  const [deposits, setDeposits] = useState<any[]>([]); // State for deposits
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -159,7 +160,32 @@ export default function DashboardPage({ account }: { account: string | null }) {
       }
     };
 
+    const fetchDeposits = async () => {
+      try {
+        setLoading(true);
+
+        // Fetch deposits from Supabase
+        const { data, error } = await supabase
+          .from('lendtransactions')
+          .select('*')
+          .eq('user_address', account)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error fetching deposits:', error);
+        } else {
+          console.log('Fetched deposits:', data); // Log fetched data for debugging
+          setDeposits(data || []);
+        }
+      } catch (err) {
+        console.error('Error fetching deposits:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchLoans();
+    fetchDeposits();
   }, [account]);
 
   // Filter loans based on the activeSubTab
@@ -233,7 +259,40 @@ export default function DashboardPage({ account }: { account: string | null }) {
 
       {activeTab === 'Deposits' && (
         <Section>
-          <p>Deposits section content goes here.</p>
+          {loading ? (
+            <p>Loading deposits...</p>
+          ) : deposits.length === 0 ? (
+            <p>No deposits found for the account: {account}</p>
+          ) : (
+            <LoanTableWrapper>
+              <LoanTable>
+                <thead>
+                  <tr>
+                    <th>Transaction Hash</th>
+                    <th>Amount</th>
+                    <th>Duration</th>
+                    <th>APY</th>
+                    <th>Protocol</th>
+                    <th>Network</th>
+                    <th>Created At</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {deposits.map((deposit) => (
+                    <tr key={deposit.id}>
+                      <td>{deposit.transaction_hash}</td>
+                      <td>{deposit.amount} USD</td>
+                      <td>{deposit.duration} days</td>
+                      <td>{deposit.apy}</td>
+                      <td>{deposit.protocol}</td>
+                      <td>{deposit.network}</td>
+                      <td>{new Date(deposit.created_at).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </LoanTable>
+            </LoanTableWrapper>
+          )}
         </Section>
       )}
     </DashboardWrapper>
