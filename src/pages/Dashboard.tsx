@@ -91,11 +91,9 @@ const CreateButton = styled(Link)`
   }
 `;
 
-// Removed duplicate LoanTable declaration
-
 const LoanTableWrapper = styled.div`
   width: 100%;
-  overflow-x: auto; /* Enable horizontal scrolling for smaller screens */
+  overflow-x: auto;
   margin-top: ${({ theme }) => theme.spacing.md};
 
   @media (max-width: 768px) {
@@ -126,12 +124,128 @@ const LoanTable = styled.table`
   }
 `;
 
+const ActionButton = styled.button`
+  background: ${({ theme }) => theme.colors.primary};
+  color: ${({ theme }) => theme.colors.white};
+  border: none;
+  padding: ${({ theme }) => theme.spacing.xs} ${({ theme }) => theme.spacing.sm};
+  border-radius: ${({ theme }) => theme.borderRadius.sm};
+  cursor: pointer;
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  font-weight: ${({ theme }) => theme.fontWeights.medium};
+  transition: background ${({ theme }) => theme.transitions.default};
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.primaryDark};
+  }
+`;
+
+const ModalWrapper = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+`;
+
+const ModalContent = styled.div`
+  background: ${({ theme }) => theme.colors.white};
+  padding: ${({ theme }) => theme.spacing.lg};
+  border-radius: ${({ theme }) => theme.borderRadius.md};
+  box-shadow: ${({ theme }) => theme.shadows.lg};
+  width: 90%;
+  max-width: 400px;
+  text-align: center;
+`;
+
+const ModalButton = styled.button`
+  background: ${({ theme }) => theme.colors.primary};
+  color: ${({ theme }) => theme.colors.white};
+  border: none;
+  padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.md};
+  border-radius: ${({ theme }) => theme.borderRadius.sm};
+  cursor: pointer;
+  font-size: ${({ theme }) => theme.fontSizes.md};
+  font-weight: ${({ theme }) => theme.fontWeights.medium};
+  margin: ${({ theme }) => theme.spacing.sm};
+  transition: background ${({ theme }) => theme.transitions.default};
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.primaryDark};
+  }
+
+  &:last-child {
+    background: ${({ theme }) => theme.colors.grayLight};
+    color: ${({ theme }) => theme.colors.text};
+  }
+`;
+
 export default function DashboardPage({ account }: { account: string | null }) {
   const [activeTab, setActiveTab] = useState('Loans');
   const [activeSubTab, setActiveSubTab] = useState('Active Loans');
   const [loans, setLoans] = useState<any[]>([]);
-  const [deposits, setDeposits] = useState<any[]>([]); // State for deposits
+  const [deposits, setDeposits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
+  const [selectedDeposit, setSelectedDeposit] = useState<any | null>(null);
+
+  const openWithdrawForm = (id: string, amount: number) => {
+    setSelectedDeposit({ id, amount });
+    setIsWithdrawModalOpen(true);
+  };
+
+  const closeWithdrawForm = () => {
+    setSelectedDeposit(null);
+    setIsWithdrawModalOpen(false);
+  };
+
+ const handleWithdrawRequest = async (id: string, amount: number) => {
+  try {
+    setLoading(true);
+    const { error } = await supabase
+      .from('lendtransactions')
+      .update({
+        withdrawal_requested: true,
+        withdrawal_amount: amount,
+        withdrawal_status: 'pending', // Set the status to 'pending'
+        withdrawal_requested_at: new Date().toISOString(), // Add the current timestamp
+        withdrawal_processed_at: null, // Reset processed timestamp to null
+      })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error requesting withdrawal:', error);
+      alert('Failed to submit withdraw request.');
+    } else {
+      alert('Withdraw request submitted successfully!');
+      setDeposits((prev) =>
+        prev.map((deposit) =>
+          deposit.id === id
+            ? {
+                ...deposit,
+                withdrawal_requested: true,
+                withdrawal_amount: amount,
+                withdrawal_status: 'pending',
+                withdrawal_requested_at: new Date().toISOString(),
+                withdrawal_processed_at: null,
+              }
+            : deposit
+        )
+      );
+      closeWithdrawForm();
+    }
+  } catch (err) {
+    console.error('Error requesting withdrawal:', err);
+    alert('Something went wrong.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
     if (!account) return;
@@ -140,7 +254,6 @@ export default function DashboardPage({ account }: { account: string | null }) {
       try {
         setLoading(true);
 
-        // Fetch loans from Supabase
         const { data, error } = await supabase
           .from('transactions')
           .select('*')
@@ -150,7 +263,6 @@ export default function DashboardPage({ account }: { account: string | null }) {
         if (error) {
           console.error('Error fetching loans:', error);
         } else {
-          console.log('Fetched loans:', data); // Log fetched data for debugging
           setLoans(data || []);
         }
       } catch (err) {
@@ -164,7 +276,6 @@ export default function DashboardPage({ account }: { account: string | null }) {
       try {
         setLoading(true);
 
-        // Fetch deposits from Supabase
         const { data, error } = await supabase
           .from('lendtransactions')
           .select('*')
@@ -174,7 +285,6 @@ export default function DashboardPage({ account }: { account: string | null }) {
         if (error) {
           console.error('Error fetching deposits:', error);
         } else {
-          console.log('Fetched deposits:', data); // Log fetched data for debugging
           setDeposits(data || []);
         }
       } catch (err) {
@@ -188,11 +298,10 @@ export default function DashboardPage({ account }: { account: string | null }) {
     fetchDeposits();
   }, [account]);
 
-  // Filter loans based on the activeSubTab
   const filteredLoans =
     activeSubTab === 'Active Loans'
-      ? loans.filter((loan) => loan.status === 'active') // Show only active loans
-      : loans.filter((loan) => loan.status === 'inactive'); // Show only inactive loans
+      ? loans.filter((loan) => loan.status === 'active')
+      : loans.filter((loan) => loan.status === 'inactive');
 
   return (
     <DashboardWrapper>
@@ -275,6 +384,7 @@ export default function DashboardPage({ account }: { account: string | null }) {
                     <th>Protocol</th>
                     <th>Network</th>
                     <th>Created At</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -287,6 +397,15 @@ export default function DashboardPage({ account }: { account: string | null }) {
                       <td>{deposit.protocol}</td>
                       <td>{deposit.network}</td>
                       <td>{new Date(deposit.created_at).toLocaleString()}</td>
+                      <td>
+                        {deposit.withdrawal_requested ? (
+                          <span>Request Pending</span>
+                        ) : (
+                          <ActionButton onClick={() => openWithdrawForm(deposit.id, deposit.amount)}>
+                            Withdraw
+                          </ActionButton>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -294,6 +413,19 @@ export default function DashboardPage({ account }: { account: string | null }) {
             </LoanTableWrapper>
           )}
         </Section>
+      )}
+
+      {isWithdrawModalOpen && selectedDeposit && (
+        <ModalWrapper>
+          <ModalContent>
+            <h2>Withdraw Request</h2>
+            <p>Are you sure you want to request a withdrawal of {selectedDeposit.amount} USD?</p>
+            <ModalButton onClick={() => handleWithdrawRequest(selectedDeposit.id, selectedDeposit.amount)}>
+              Confirm
+            </ModalButton>
+            <ModalButton onClick={closeWithdrawForm}>Cancel</ModalButton>
+          </ModalContent>
+        </ModalWrapper>
       )}
     </DashboardWrapper>
   );
