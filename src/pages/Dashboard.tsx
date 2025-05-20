@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient'; // Adjust the path as necessary
+import { ethers } from 'ethers';
 
 const DashboardWrapper = styled.div`
   padding: ${({ theme }) => theme.spacing.md};
@@ -247,6 +248,99 @@ export default function DashboardPage({ account }: { account: string | null }) {
   }
 };
 
+const handleRepayLoan = async (loanId: string, amount: number, receiverAddress: string) => {
+  try {
+    if (!window.ethereum) {
+      alert('MetaMask is not installed');
+      return;
+    }
+
+    // Request the user to switch to the Sepolia Testnet for testing
+    // You can remove this part if you want to use the mainnet or another network
+    await window.ethereum.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: '0xaa36a7' }], // Chain ID for Sepolia Testnet
+    });
+
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
+
+    // Convert USDC amount to ETH
+    const ethAmount = await convertUSDCtoETH(amount); // Fetch the equivalent ETH value
+    // console.log(`Converted USDC amount (${amount}) to ETH: ${ethAmount}`);
+
+    // Create a transaction object
+    const tx = {
+      to: receiverAddress, // Receiver's wallet address
+      value: ethers.parseEther(ethAmount.toString()), // Amount to send in ETH
+    };
+
+    // Send the transaction
+    const transactionResponse = await signer.sendTransaction(tx);
+    // console.log('Transaction sent:', transactionResponse);
+
+    // Wait for the transaction to be mined
+    const receipt = await transactionResponse.wait();
+    // console.log('Transaction mined:', receipt);
+
+    // Update loan status in the database
+    const { error } = await supabase
+      .from('transactions')
+      .update({ status: 'inactive' }) // Mark the loan as repaid
+      .eq('id', loanId);
+
+    if (error) {
+      console.error('Error updating loan status:', error);
+      alert('Failed to update loan status.');
+    } else {
+      alert('Loan repaid successfully!, your collateral will be released within 24 hours');
+      setLoans((prevLoans) =>
+        prevLoans.map((loan) =>
+          loan.id === loanId ? { ...loan, status: 'inactive' } : loan
+        )
+      );
+    }
+  } catch (err) {
+    console.error('Error repaying loan:', err);
+    alert('Something went wrong. Please try again.');
+  }
+};
+
+// Function to convert USDC to ETH using CoinGecko API only for testing purposes
+const convertUSDCtoETH = async (usdcAmount: number): Promise<number> => {
+  try {
+    // Fetch the real-time price of USDC and ETH from CoinGecko
+    const response = await fetch(
+      'https://api.coingecko.com/api/v3/simple/price?ids=usd-coin,ethereum&vs_currencies=usd'
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch conversion rates');
+    }
+
+    const data = await response.json();
+
+    // Extract the USD price of 1 ETH and 1 USDC
+    const ethPriceInUSD = data.ethereum.usd; // Price of 1 ETH in USD
+    const usdcPriceInUSD = data['usd-coin'].usd; // Price of 1 USDC in USD (should be close to 1)
+
+    // Calculate the conversion rate: 1 USDC to ETH
+    const conversionRate = 1 / (ethPriceInUSD / usdcPriceInUSD);
+
+    // Convert the USDC amount to ETH
+    const ethAmount = usdcAmount * conversionRate;
+
+    console.log(`Conversion Rate (1 USDC to ETH): ${conversionRate}`);
+    console.log(`Converted Amount: ${ethAmount} ETH`);
+
+    return ethAmount;
+  } catch (err) {
+    console.error('Error converting USDC to ETH:', err);
+    throw new Error('Failed to convert USDC to ETH');
+  }
+};
+
+
   useEffect(() => {
     if (!account) return;
 
@@ -298,6 +392,7 @@ export default function DashboardPage({ account }: { account: string | null }) {
     fetchDeposits();
   }, [account]);
 
+
   const filteredLoans =
     activeSubTab === 'Active Loans'
       ? loans.filter((loan) => loan.status === 'active')
@@ -327,6 +422,7 @@ export default function DashboardPage({ account }: { account: string | null }) {
           </SubTabs>
           <CreateButton to="/get-a-loan">Create New Loan</CreateButton>
 
+          
           {loading ? (
             <p>Loading loans...</p>
           ) : filteredLoans.length === 0 ? (
@@ -342,7 +438,7 @@ export default function DashboardPage({ account }: { account: string | null }) {
                     <th>Collateral</th>
                     <th>APR</th>
                     <th>Loan Duration</th>
-                    <th>Created At</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -356,7 +452,15 @@ export default function DashboardPage({ account }: { account: string | null }) {
                       </td>
                       <td>{loan.apr}</td>
                       <td>{loan.days} days</td>
-                      <td>{new Date(loan.created_at).toLocaleString()}</td>
+                      <td>
+                        {loan.status === 'active' && (
+                          <ActionButton
+                            onClick={() => handleRepayLoan(loan.id, loan.amount, loan.receiver_address)}
+                          >
+                            Repay
+                          </ActionButton>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
